@@ -4,17 +4,120 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sherlock WebUI</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f9f9f9;
+      }
+
+      .container {
+        text-align: center;
+        background: #fff;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        width: 90%;
+        max-width: 400px;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 20px;
+        color: #333;
+      }
+
+      label {
+        display: block;
+        margin-top: 15px;
+        font-size: 1rem;
+        color: #555;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 1rem;
+      }
+
+      input[type="checkbox"] {
+        margin-top: 10px;
+      }
+
+      button {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 1rem;
+        color: #fff;
+        background-color: #007bff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #0056b3;
+      }
+
+      .error {
+        color: red;
+        margin-top: 10px;
+        font-size: 0.9rem;
+      }
+    </style>
   </head>
   <body>
-    <h1>Sherlock WebUI</h1>
-    <form id="sherlockForm" method="POST" action="/sherlock/run">
-      <label for="username">Username :</label>
-      <input type="text" id="username" name="username" required />
-      <br />
-      <label for="nsfw">Include NSFW content :</label>
-      <input type="checkbox" id="nsfw" name="nsfw" />
-      <br />
-      <button type="submit">Run Sherlock</button>
-    </form>
+    <div class="container">
+      <h1>Sherlock WebUI</h1>
+      <form id="sherlockForm" onsubmit="return false;">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required />
+
+        <label for="nsfw">
+          <input type="checkbox" id="nsfw" name="nsfw" /> Include NSFW content
+        </label>
+
+        <button type="submit" id="run-sherlock-btn">Run Sherlock</button>
+      </form>
+      <div id="error-message" class="error"></div>
+    </div>
+    <script>
+      document
+        .getElementById("run-sherlock-btn")
+        .addEventListener("click", async () => {
+          const username = document.getElementById("username").value;
+          const nsfw = document.getElementById("nsfw").checked;
+
+          const response = await fetch("/sherlock/run", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, nsfw }),
+          });
+
+          const errorMessage = document.getElementById("error-message");
+          errorMessage.textContent = "";
+
+          if (response.ok) {
+            window.location.href = "/sherlock/logs";
+          } else {
+            const error = await response.json();
+            errorMessage.textContent = `Error: ${error.error}`;
+          }
+        });
+    </script>
   </body>
 </html>
