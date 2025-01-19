@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sherlock WebUI</title>
+  </head>
+  <body>
+    <h1>Sherlock WebUI</h1>
+    <form id="sherlockForm" method="POST" action="/sherlock/run">
+      <label for="username">Username :</label>
+      <input type="text" id="username" name="username" required />
+      <br />
+      <label for="nsfw">Include NSFW content :</label>
+      <input type="checkbox" id="nsfw" name="nsfw" />
+      <br />
+      <button type="submit">Run Sherlock</button>
+    </form>
+  </body>
+</html>

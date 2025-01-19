@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Logs Sherlock</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+      window.onbeforeunload = function () {
+        return "The search is in progress. Are you sure you want to leave?";
+      };
+
+      const socket = io();
+      const logsDiv = document.getElementById("logs");
+
+      socket.on("log", (data) => {
+        const logLine = document.createElement("p");
+        logLine.textContent = data.data;
+        logsDiv.appendChild(logLine);
+        logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll
+      });
+
+      socket.on("log_done", () => {
+        window.onbeforeunload = null; // Cancels closing prevention
+        alert("Search complete!");
+      });
+    </script>
+  </head>
+  <body>
+    <h1>Logs Sherlock</h1>
+    <div
+      id="logs"
+      style="
+        background-color: #f4f4f4;
+        padding: 10px;
+        border: 1px solid #ccc;
+        height: 300px;
+        overflow-y: auto;
+      "
+    ></div>
+  </body>
+</html>
