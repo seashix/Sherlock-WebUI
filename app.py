@@ -37,7 +37,7 @@ def run_sherlock():
         return jsonify({"error": "The 'username' field is required"}), 400
 
     # Command to run Sherlock
-    command = f"sherlock {username} {nsfw_option} --print-found"
+    command = f"python3 -m sherlock {username} {nsfw_option} --print-found"
     print(f"Command executed: {command}")
 
     # Capture client IP and start the subprocess
