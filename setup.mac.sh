@@ -1,27 +1,20 @@
 #!/bin/bash
 
-echo "🐧 Setting up Sherlock WebUI on Linux..."
+echo "🍏 Setting up Sherlock WebUI on macOS..."
 
-# Detect environment
-CLOUD_PROVIDER=""
-if [[ "$HOSTNAME" == *"pythonanywhere"* ]]; then
-    CLOUD_PROVIDER="PythonAnywhere"
-elif [[ "$HOSTNAME" == *"do"* ]]; then
-    CLOUD_PROVIDER="Digital Ocean"
-elif [[ "$HOSTNAME" == *"google"* ]]; then
-    CLOUD_PROVIDER="Google Cloud"
-elif [[ "$HOSTNAME" == *"aws"* ]]; then
-    CLOUD_PROVIDER="AWS"
+# Check if Homebrew is installed
+if ! command -v brew &>/dev/null; then
+    echo "❌ Homebrew is not installed. Please install it from https://brew.sh and try again."
+    exit 1
 fi
 
-echo "🌐 Detected environment: ${CLOUD_PROVIDER:-Local Machine}"
+# Install dependencies
+echo "📦 Installing Python, Git, and Pipx..."
+brew install python git pipx
 
-# Update system (if using apt)
-if command -v apt &>/dev/null; then
-    echo "📦 Updating the system and installing dependencies..."
-    sudo apt update
-    sudo apt install -y python3 python3-pip python3-venv git
-fi  
+# Ensure Pipx is in PATH
+export PATH="$HOME/.local/bin:$PATH"
+pipx ensurepath
 
 # Create virtual environment
 if [ ! -d "venv" ]; then

@@ -10,7 +10,6 @@
         padding: 0;
         box-sizing: border-box;
       }
-
       body {
         font-family: Arial, sans-serif;
         display: flex;
@@ -19,7 +18,6 @@
         height: 100vh;
         background-color: #f9f9f9;
       }
-
       .container {
         text-align: center;
         background: #fff;
@@ -29,20 +27,17 @@
         width: 90%;
         max-width: 400px;
       }
-
       h1 {
         font-size: 2rem;
         margin-bottom: 20px;
         color: #333;
       }
-
       label {
         display: block;
         margin-top: 15px;
         font-size: 1rem;
         color: #555;
       }
-
       input[type="text"] {
         width: 100%;
         padding: 10px;
@@ -51,11 +46,9 @@
         border-radius: 5px;
         font-size: 1rem;
       }
-
       input[type="checkbox"] {
         margin-top: 10px;
       }
-
       button {
         margin-top: 20px;
         padding: 10px 20px;
@@ -66,11 +59,9 @@
         border-radius: 5px;
         cursor: pointer;
       }
-
       button:hover {
         background-color: #0056b3;
       }
-
       .error {
         color: red;
         margin-top: 10px;
@@ -93,29 +84,38 @@
       </form>
       <div id="error-message" class="error"></div>
     </div>
+
     <script>
       document
         .getElementById("run-sherlock-btn")
         .addEventListener("click", async () => {
           const username = document.getElementById("username").value;
           const nsfw = document.getElementById("nsfw").checked;
-
-          const response = await fetch("/sherlock/run", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ username, nsfw }),
-          });
-
           const errorMessage = document.getElementById("error-message");
-          errorMessage.textContent = "";
 
-          if (response.ok) {
-            window.location.href = "/sherlock/logs";
-          } else {
-            const error = await response.json();
-            errorMessage.textContent = `Error: ${error.error}`;
+          errorMessage.textContent = ""; // Clear previous errors
+
+          if (!username.trim()) {
+            errorMessage.textContent = "Please enter a username.";
+            return;
+          }
+
+          try {
+            const response = await fetch("/sherlock/run", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, nsfw }),
+              credentials: "include", // Ensures cookies are sent
+            });
+
+            if (response.ok) {
+              window.location.href = "/sherlock/run"; // Redirect without exposing session ID
+            } else {
+              const error = await response.json();
+              errorMessage.textContent = `[API] Error: ${error.error}`;
+            }
+          } catch (error) {
+            errorMessage.textContent = "Network error, please try again.";
           }
         });
     </script>

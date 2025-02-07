@@ -1,27 +1,43 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, make_response
 from flask_socketio import SocketIO, emit, join_room
 import subprocess
 import os
 import threading
 import time
+import uuid  # Generate unique session IDs
 
-# Flask app and Socket.IO initialization
-template_dir = os.path.abspath('./web/templates')
+# Get absolute path for templates directory
+base_dir = os.path.abspath(os.path.dirname(__file__))
+template_dir = os.path.join(base_dir, "web/templates")
+
+# Check if Flask sees the template directory
+template_path = os.path.join(os.getcwd(), template_dir)
+print(f" * Checking template path: {template_path}")
+print(" * Templates found:", os.listdir(template_path))
+
+def detect_sherlock_command():
+    """Detect whether Sherlock is available as a Python module or a CLI command."""
+    try:
+        subprocess.run(["python3", "-m", "sherlock", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print("[INFO] Using Python module for Sherlock.")
+        return "python3 -m sherlock"
+    except subprocess.CalledProcessError:
+        try:
+            subprocess.run(["sherlock", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print("[INFO] Using Sherlock CLI command.")
+            return "sherlock"
+        except subprocess.CalledProcessError:
+            print("[ERROR] Sherlock is not installed.")
+            return None
+
+
 app = Flask(__name__, template_folder=template_dir)
+app.secret_key = os.urandom(24)  # Secure random secret key
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Track ongoing processes and client activity
 processes = {}
 last_activity = {}
-ABANDON_TIMEOUT = 300  # 5 minutes of inactivity
-
-@app.errorhandler(404)
-def not_found(e):
-    return render_template("errors/404.html")
-
-@app.errorhandler(500)
-def server_error(e):
-    return render_template("errors/500.html")
+ABANDON_TIMEOUT = 300  # 5 minutes
 
 @app.route('/sherlock')
 def index():
@@ -36,88 +52,107 @@ def run_sherlock():
     if not username:
         return jsonify({"error": "The 'username' field is required"}), 400
 
-    # Command to run Sherlock
-    command = f"python3 -m sherlock {username} {nsfw_option} --print-found"
-    print(f"Command executed: {command}")
+    # Detect the correct command for Sherlock
+    sherlock_command = detect_sherlock_command()
+    if not sherlock_command:
+        return jsonify({"error": "Sherlock is not installed correctly."}), 500
 
-    # Capture client IP and start the subprocess
-    client_ip = request.remote_addr
+    # Generate session ID and store username in session
+    session_id = str(uuid.uuid4())
+    session['id'] = session_id
+    session['username'] = username  # Store username for deletion
+
+    # Construct the full command
+    output_dir = os.path.join(base_dir, "sherlock_output")  # Inside project folder
+    os.makedirs(output_dir, exist_ok=True)  # Ensure the folder exists
+    output_file = os.path.join(output_dir, f"{session_id}-{username}.txt")
+
+    command = f"{sherlock_command} {username} {nsfw_option} --print-found --output {output_file}"
+    print(f"[SECURE] Executing: {command}")
+
     process = subprocess.Popen(
         command.split(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
+        bufsize=1  # Real-time output
     )
 
-    # Track the process and activity for the client
-    processes[client_ip] = process
-    last_activity[client_ip] = time.time()
+    processes[session_id] = process
+    last_activity[session_id] = time.time()
 
+    def stream_logs(session_id, process):
+        print(f"[DEBUG] Streaming logs for session {session_id}...")
 
-    def stream_logs():
         for line in process.stdout:
-            #print(f"Log sent: {line.strip()}")  # Debugging
-            socketio.emit('log', {'data': line.strip()}, to=client_ip)
-            last_activity[client_ip] = time.time()  # Update last activity
+            if session_id not in processes:
+                print(f"[DEBUG] Stopping log stream for session {session_id} (client disconnected)")
+                return
+
+            print(f"[LOG] {line.strip()}")  # Log output for debugging
+            socketio.emit("log", {"data": line.strip()}, to=session_id)
+            last_activity[session_id] = time.time()
 
         process.wait()
-        print("[Sherlock] Search completed.")
-        if client_ip in processes:
-            del processes[client_ip]
-            del last_activity[client_ip]
-        socketio.emit('log_done', {'data': 'Search completed'}, to=client_ip)
+        print(f"[DEBUG] Sherlock process finished for session {session_id}")
 
-    threading.Thread(target=stream_logs).start()
-    return redirect(url_for('logs'))
+        if session_id in processes:
+            del processes[session_id]
+            del last_activity[session_id]
 
-@app.route('/sherlock/logs')
+        socketio.emit("log_done", {"data": "Search completed"}, to=session_id)
+
+    threading.Thread(target=stream_logs, args=(session_id, process)).start()
+
+    response = jsonify({"message": "Search started"})
+    response.set_cookie("session_id", session_id, httponly=True, secure=False, samesite="Lax")
+    print(f"Setting Cookie: session_id={session_id}")
+    return response
+
+@app.route('/sherlock/run')
 def logs():
-    return render_template('sherlock-ui/logs.html')
+    session_id = request.cookies.get("session_id")
+    print(f"[DEBUG] Retrieved session_id from cookie: {session_id}")  # Debugging
+
+    if not session_id:
+        return "Session not found. Please restart the search.", 400
+
+    return render_template('sherlock-ui/run.html', session_id=session_id)
 
 @socketio.on('connect')
 def handle_connect():
-    client_ip = request.remote_addr
-    join_room(client_ip)  # Associate the client with a room
-    print(f'[SocketIO] Client {client_ip} connected.')
+    session_id = request.cookies.get("session_id")
+    if session_id:
+        join_room(session_id)
+        print(f'[SocketIO] Client <{session_id}> connected.')
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    client_ip = request.remote_addr
-    print(f'[SocketIO] Client {client_ip} disconnected.')
+    session_id = session.get('id')
+    username = session.get('username')  # Retrieve the username stored in session
 
-    # Clean up process if the client disconnects
-    if client_ip in processes:
-        processes[client_ip].kill()
-        del processes[client_ip]
-        if client_ip in last_activity:
-            del last_activity[client_ip]
-        print(f'[SocketIO] Process for {client_ip} terminated due to disconnection.')
+    print(f'[SocketIO] Client {session_id} disconnected.')
 
-# Thread to clean up abandoned processes
-def cleanup_abandoned_processes():
-    while True:
-        current_time = time.time()
-        to_terminate = []
+    if session_id in processes:
+        print(f"[DEBUG] Terminating process for session {session_id} (User left the page)")
+        processes[session_id].kill()  # Kill the subprocess
+        del processes[session_id]
 
-        for client_ip, last_time in last_activity.items():
-            if current_time - last_time > ABANDON_TIMEOUT:
-                to_terminate.append(client_ip)
+        # Delete the output file
+        output_dir = "/sherlock_output/"
+        output_file = os.path.join(output_dir, f"{session_id}-{username}.txt")
 
-        for client_ip in to_terminate:
-            if client_ip in processes:
-                print(f'[Sherlock] Terminating abandoned process for {client_ip}.')
-                processes[client_ip].kill()
-                del processes[client_ip]
-                del last_activity[client_ip]
+        if os.path.exists(output_file):
+            try:
+                os.remove(output_file)
+                print(f"[INFO] Deleted output file: {output_file}")
+            except Exception as e:
+                print(f"[ERROR] Failed to delete {output_file}: {e}")
 
-        time.sleep(10)
+    if session_id in last_activity:
+        del last_activity[session_id]
 
-# Start the cleanup thread
-cleanup_thread = threading.Thread(target=cleanup_abandoned_processes, daemon=True)
-cleanup_thread.start()
+
 
 if __name__ == '__main__':
-    import os
-    host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')  # Default: listening on all interfaces
-    port = int(os.getenv('FLASK_RUN_PORT', 5000))  # Default: port 5000
-    socketio.run(app, host=host, port=port)
+    socketio.run(app.run(debug=True), host='0.0.0.0', port=5000)
