@@ -4,169 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Run & Logs - Sherlock WebUI</title>
-    <script src="https://cdn.socket.io/4.5.1/socket.io.min.js"></script>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background-color: #f9f9f9;
-        text-align: center;
-        padding: 20px;
-      }
-
-      h1 {
-        color: #333;
-      }
-
-      #session-id {
-        font-size: 0.9rem;
-        color: gray;
-        margin-bottom: 10px;
-      }
-    </style>
-    <style>
-      #logs {
-        background-color: black;
-        color: white;
-        font-family: monospace;
-        text-align: left;
-        width: 80%;
-        max-width: 800px;
-        height: 400px;
-        overflow-y: auto;
-        padding: 10px;
-        border-radius: 5px;
-        margin: 20px auto;
-        white-space: pre-wrap;
-      }
-
-      /* Flashy completion text */
-      .completed {
-        color: orange;
-        font-weight: bold;
-        font-size: 1.2em;
-      }
-    </style>
+    <script src="/assets/js/socket.io.min.js"></script>
+    <link rel="stylesheet" href="/assets/css/sherlock-run.css" />
   </head>
   <body>
     <h1>Sherlock Logs</h1>
-    <p id="session-id">Loading session ID...</p>
+    <p>
+      <span id="session-id">Loading session ID...</span> <br />
+      <span id="username">Loading username...</span>
+    </p>
     <div id="logs">Waiting for logs...</div>
     <script>
-      // The session ID is now injected by Flask (no need to read cookies)
       const sessionId = "{{ session_id }}";
-
-      if (!sessionId || sessionId === "None") {
-        document.getElementById("logs").textContent =
-          "Session not found. Please restart the search.";
-        console.error("Session ID is missing.");
-      } else {
-        document.getElementById(
-          "session-id"
-        ).textContent = `Session ID: ${sessionId}`;
-      }
-
-      // Connect to WebSocket
-      const socket = io({ transports: ["websocket"] }); // Force WebSocket mode
-
-      let firstLogReceived = false; // To track the first log line
-      let logsContent = ""; // Store logs for download
-
-      socket.on("connect", () => {
-        console.log(`[SocketIO] Connected to session: {{ session_id }}`);
-        socket.emit("join", { room: "{{ session_id }}" });
-      });
-
-      socket.on("log", (data) => {
-        const logsDiv = document.getElementById("logs");
-
-        // Remove "Waiting for logs..." when first log appears
-        if (!firstLogReceived) {
-          logsDiv.innerHTML = ""; // Clear the placeholder text
-          logsContent += "---- Sherlock WebUI Project ----\n";
-          logsContent += `--- Session ID: {{ session_id }} ---\n`;
-          logsContent += "---- See logs for your output ----\n\n";
-          firstLogReceived = true;
-        }
-
-        let logLine = data.data;
-        logsContent += logLine + "\n"; // Store log for downloading
-
-        // Apply colors to logs dynamically
-        logLine = logLine.replace(
-          /\[\*\]/g,
-          '<span style="color: yellow;">[*]</span>'
-        ); // Yellow [*]
-        logLine = logLine.replace(
-          /\[\+\]/g,
-          '<span style="color: green;">[+]</span>'
-        ); // Green [+]
-
-        // Highlight search results count in green
-        logLine = logLine.replace(
-          /Search completed with (\d+) results/,
-          (match, num) =>
-            `Search completed with <span style="color: green;">${num}</span> results`
-        );
-
-        // Convert URLs into clickable links
-        logLine = logLine.replace(
-          /(https?:\/\/[^\s]+)/g,
-          '<a href="$1" target="_blank" style="color: cyan; text-decoration: underline;">$1</a>'
-        );
-
-        const logElement = document.createElement("p");
-        logElement.innerHTML = logLine; // Use innerHTML to apply styling
-        logsDiv.appendChild(logElement);
-        logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to latest log
-      });
-
-      socket.on("log_done", () => {
-        console.log("[SocketIO] Search completed.");
-
-        const logsDiv = document.getElementById("logs");
-
-        // Flashy completion message
-        const completionMessage = document.createElement("p");
-        completionMessage.innerHTML =
-          '<span style="color: orange; font-weight: bold;">--- Search completed! ---</span>';
-        logsDiv.appendChild(completionMessage);
-
-        // Add Download Link
-        const downloadLink = document.createElement("a");
-        downloadLink.href = "#";
-        downloadLink.textContent = "Download Logs";
-        downloadLink.style =
-          "display: block; margin-top: 10px; font-weight: bold; color: white; cursor: pointer; text-decoration: underline;";
-        downloadLink.onclick = () => downloadLogs();
-        logsDiv.appendChild(downloadLink);
-      });
-
-      // Function to download logs as a file
-      function downloadLogs() {
-        const blob = new Blob([logsContent], { type: "text/plain" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `SherlockWebUI.logs-${sessionId}.txt`;
-        link.click();
-      }
-
-      // Warn user if they try to leave the page
-      window.addEventListener("beforeunload", (event) => {
-        console.log("[SocketIO] Sending disconnect event before leaving.");
-        socket.disconnect();
-
-        // Custom alert
-        setTimeout(() => {
-          alert(
-            "The search is ending, and the socket will be closed. See you soon on Sherlock WebUI!"
-          );
-        }, 10); // Delayed to avoid Chrome overriding it
-
-        // Browser default warning
-        event.preventDefault();
-        event.returnValue =
-          "Are you sure you want to leave? The search will be interrupted.";
-      });
+      const username = "{{ username }}";
     </script>
+    <script src="/assets/js/sherlock-run.js"></script>
   </body>
 </html>

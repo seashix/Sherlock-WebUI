@@ -1,0 +1,39 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f9f9f9;
+  text-align: center;
+  padding: 20px;
+}
+
+h1 {
+  color: #333;
+}
+
+#session-id,
+#username {
+  font-size: 0.9rem;
+  color: gray;
+  margin-bottom: 10px;
+}
+
+#logs {
+  background-color: black;
+  color: white;
+  font-family: monospace;
+  text-align: left;
+  width: 80%;
+  max-width: 800px;
+  height: 400px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 5px;
+  margin: 20px auto;
+  white-space: pre-wrap;
+}
+
+/* Flashy completion text */
+.completed {
+  color: orange;
+  font-weight: bold;
+  font-size: 1.2em;
+}

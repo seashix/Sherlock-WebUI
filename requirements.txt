@@ -4,3 +4,4 @@ eventlet
 python-dotenv
 pipx
 sherlock-project
+requests

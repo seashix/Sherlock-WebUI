@@ -5,15 +5,20 @@ import os
 import threading
 import time
 import uuid  # Generate unique session IDs
+import requests  # Add this line to import the requests library
 
 # Get absolute path for templates directory
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, "web/templates")
+static_dir = os.path.join(base_dir, "web/static")
 
-# Check if Flask sees the template directory
+# Check if Flask sees the template and static directory
 template_path = os.path.join(os.getcwd(), template_dir)
+static_path = os.path.join(os.getcwd(), static_dir)
 print(f" * Checking template path: {template_path}")
 print(" * Templates found:", os.listdir(template_path))
+print(f" * Checking static path: {static_path}")
+print(" * Static found:", os.listdir(static_path))
 
 def detect_sherlock_command():
     """Detect whether Sherlock is available as a Python module or a CLI command."""
@@ -31,13 +36,29 @@ def detect_sherlock_command():
             return None
 
 
-app = Flask(__name__, template_folder=template_dir)
+app = Flask(__name__, static_url_path='', static_folder=static_dir, template_folder=template_dir)
 app.secret_key = os.urandom(24)  # Secure random secret key
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 processes = {}
 last_activity = {}
 ABANDON_TIMEOUT = 300  # 5 minutes
+
+@app.route('/proxy/youtube', methods=['GET'])
+def proxy_youtube():
+    username = request.args.get('at')
+    if not username:
+        return jsonify({"error": "Username not found"}), 400
+
+    url = f'https://www.youtube.com/@{username}'
+    try:
+        response = requests.get(url)
+        response.raise_for_status() 
+        return jsonify({'response': 'taken', 'error': ''})
+    except requests.exceptions.HTTPError as err:
+        return jsonify({'response': 'not_taken', 'error': str(err)}), err.response.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/')
 def home(): 
@@ -114,18 +135,26 @@ def run_sherlock():
 
     response = jsonify({"message": "Search started"})
     response.set_cookie("session_id", session_id, httponly=True, secure=False, samesite="Lax")
-    print(f"Setting Cookie: session_id={session_id}")
+    response.set_cookie("username", username, httponly=True, secure=False, samesite="Lax")
+    print(f"Setting Cookie: session_id={session_id} / username={username}")
     return response
 
 @app.route('/sherlock/run')
 def logs():
     session_id = request.cookies.get("session_id")
-    print(f"[DEBUG] Retrieved session_id from cookie: {session_id}")  # Debugging
+    username = request.cookies.get("username")
 
     if not session_id:
         return "Session not found. Please restart the search.", 400
+    else:
+        print(f"[DEBUG] Retrieved session_id from cookie: {session_id}")  # Debugging
 
-    return render_template('sherlock-ui/run.html', session_id=session_id)
+    if not username:
+        return "Username not found. Please restart the search.", 400
+    else:
+        print(f"[DEBUG] Retrieved username from cookie: {username}")  # Debugging
+
+    return render_template('sherlock-ui/run.html', session_id=session_id, username=username)
 
 @app.errorhandler(404)
 def page_not_found(e):
@@ -148,22 +177,19 @@ def handle_disconnect():
     username = session.get('username')  # Retrieve the username stored in session
 
     print(f'[SocketIO] Client {session_id} disconnected.')
+    processes[session_id].kill()  # Kill the subprocess
+    del processes[session_id]
 
-    if session_id in processes:
-        print(f"[DEBUG] Terminating process for session {session_id} (User left the page)")
-        processes[session_id].kill()  # Kill the subprocess
-        del processes[session_id]
+    # Delete the output file
+    output_dir = "/sherlock_output/"
+    output_file = os.path.join(output_dir, f"{session_id}-{username}.txt")
 
-        # Delete the output file
-        output_dir = "/sherlock_output/"
-        output_file = os.path.join(output_dir, f"{session_id}-{username}.txt")
-
-        if os.path.exists(output_file):
-            try:
-                os.remove(output_file)
-                print(f"[INFO] Deleted output file: {output_file}")
-            except Exception as e:
-                print(f"[ERROR] Failed to delete {output_file}: {e}")
+    if os.path.exists(output_file):
+        try:
+            os.remove(output_file)
+            print(f"[INFO] Deleted output file: {output_file}")
+        except Exception as e:
+            print(f"[ERROR] Failed to delete {output_file}: {e}")
 
     if session_id in last_activity:
         del last_activity[session_id]
