@@ -39,8 +39,16 @@ processes = {}
 last_activity = {}
 ABANDON_TIMEOUT = 300  # 5 minutes
 
+@app.route('/')
+def home(): 
+    return redirect(url_for('home_sherlock'))
+
+@app.route('/sherlock-run')
+def sherlock_run_failUrl():
+    return redirect(url_for('home_sherlock'))
+
 @app.route('/sherlock')
-def index():
+def home_sherlock():
     return render_template('sherlock-ui/index.html')
 
 @app.route('/sherlock/run', methods=['POST'])
@@ -119,6 +127,14 @@ def logs():
 
     return render_template('sherlock-ui/run.html', session_id=session_id)
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('errors/404.html'), 404
+
+@app.errorhandler(500)
+def page_not_found(e):
+    return render_template('errors/500.html'), 500
+
 @socketio.on('connect')
 def handle_connect():
     session_id = request.cookies.get("session_id")
@@ -151,8 +167,6 @@ def handle_disconnect():
 
     if session_id in last_activity:
         del last_activity[session_id]
-
-
 
 if __name__ == '__main__':
     socketio.run(app.run(debug=True), host='0.0.0.0', port=5000)
